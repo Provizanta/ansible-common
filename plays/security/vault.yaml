@@ -6,14 +6,14 @@
     VAULT_AUTHTYPE: token
     VAULT_TOKEN: "{{ lookup('community.hashi_vault.vault_login', url=vault_address, auth_method='token', token=vault_root_token) | community.hashi_vault.vault_login_token }}"
   tasks:
-    - name: pre-requisites
-      when: ansible_system == "Linux"
-      ansible.builtin.pip:
-        name:
-          - ansible-modules-hashivault
-          - google-cloud-storage
-          - hvac
-        state: present
+    # - name: pre-requisites
+    #   when: ansible_system == "Linux"
+    #   ansible.builtin.pip:
+    #     name:
+    #       - ansible-modules-hashivault
+    #       - google-cloud-storage
+    #       - hvac
+    #     state: present
 
     - name: create python symlink
       when: ansible_system == "Linux"

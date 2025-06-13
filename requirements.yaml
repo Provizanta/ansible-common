@@ -1,6 +1,34 @@
 ---
 
 roles:
+  - name: apps/security/hashivault-modules
+    src: https://github.com/TerryHowe/ansible-modules-hashivault.git
+    version: main
+
+  - name: apps/vim
+    src: https://github.com/Provizanta/ansible-role-vim
+    version: v2.0.0
+
+  - name: infra/virtualization/docker
+    src: geerlingguy.docker
+    version: 7.4.3
+
+  - name: infra/virtualization/libvirt
+    src: https://github.com/Provizanta/ansible-role-libvirt
+    version: main
+
+  - name: infra/virtualization/lxd
+    src: https://github.com/Provizanta/ansible-role-lxd
+    version: v1.0.4
+
+  - name: infra/orchestration/microk8s
+    src: https://github.com/Provizanta/ansible-role-microk8s
+    version: v2.0.7
+
+  - name: network/bind
+    src: https://github.com/Provizanta/ansible-role-bind
+    version: v1.0.4
+
   - name: network/ntp
     src: geerlingguy.ntp
     version: 2.3.1
@@ -9,17 +37,37 @@ roles:
     src: geerlingguy.nfs
     version: 2.0.0
 
-  - name: ansible-modules-hashivault
-    src: https://github.com/TerryHowe/ansible-modules-hashivault.git
-    version: main
+  - name: os/linux/bootstrap
+    src: https://github.com/Provizanta/ansible-role-bootstrap
+    version: v1.0.3
 
-  - name: virtual/libvirt
-    src: https://github.com/Provizanta/ansible-role-libvirt
-    version: main
+  - name: os/driver/gpu/nvidia-cuda
+    src: https://github.com/Provizanta/ansible-role-nvidia-cuda
+    version: v1.1.2
 
-  - name: os/linux/docker
-    src: geerlingguy.docker
-    version: 7.4.3
+  - name: os/linux/ca/trusted
+    src: https://github.com/Provizanta/ansible-role-ca-trusted
+    version: v1.0.1
+
+  - name: os/linux/snapd
+    src: https://github.com/Provizanta/ansible-role-snapd
+    version: v1.0.1
+
+  - name: os/nix
+    src: https://github.com/Provizanta/ansible-role-nix
+    version: v1.0.0
+
+  - name: os/openssh
+    src: https://github.com/Provizanta/ansible-role-openssh
+    version: v1.0.3
+
+  - name: os/shell
+    src: https://github.com/Provizanta/ansible-role-shell
+    version: v3.0.0
+
+  - name: os/users
+    src: https://github.com/Provizanta/ansible-role-users
+    version: v1.2.5
 
 collections:
   - name: community.hashi_vault

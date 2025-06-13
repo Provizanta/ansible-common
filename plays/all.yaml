@@ -1,0 +1,41 @@
+--- 
+
+- hosts: workstation
+  environment: "{{ env | default({}) }}"
+  tasks:
+    - name: establish the local machine name and group
+      add_host:
+        hostname: "{{ inventory_hostname }}"
+        groups:
+          - applications
+        ansible_connection: "{{ ansible_connection }}"
+      tags: always
+
+- import_playbook: os/all.yaml
+  tags:
+    - bootstrap
+    - users
+    - ssh
+    - apps
+    - hw
+
+- import_playbook: infra/virtualization/all.yaml
+  tags:
+    - virtualization
+
+# services
+- import_playbook: services/ntp.yaml
+  tags: 
+    - service
+    - ntp
+
+- import_playbook: services/dns.yaml
+  tags:
+    - service
+    - dns
+
+- import_playbook: services/nfs.yaml
+  tags:
+    - service
+    - nfs
+

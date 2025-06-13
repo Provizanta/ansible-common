@@ -2,7 +2,7 @@
 
 - hosts: virt:&kvm
   roles:
-    - name: virtual/libvirt
+    - name: infra/virtualization/libvirt
       become: true
   tasks:
     - name: ensure permissions unchecked for tf storage
@@ -22,11 +22,11 @@
 
 - hosts: virt:&lxd
   roles:
-    - name: virtual/lxd
+    - name: infra/virtualization/lxd
 
 - hosts: virt:&docker
   roles:
-    - role: os/linux/docker
+    - role: infra/virtualization/docker
       become: true
       vars:
         docker_users:
@@ -42,15 +42,3 @@
 #           - name: provisioner
 #             groups:
 #               - libvirt
-
-- name: k8s | cluster deployment
-  import_playbook: ./k8s-hw.yml
-  tags:
-    - k8s
-    - k8s-hw
-
-- name: k8s | app of apps 
-  import_playbook: ./k8s-apps.yml
-  tags:
-    - k8s
-    - k8s-apps

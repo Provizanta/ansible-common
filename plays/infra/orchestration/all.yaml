@@ -1,0 +1,13 @@
+---
+
+- name: k8s | cluster deployment
+  import_playbook: ./k8s-hw.yaml
+  tags:
+    - k8s
+    - k8s-hw
+
+- name: k8s | app of apps 
+  import_playbook: ./k8s-apps.yaml
+  tags:
+    - k8s
+    - k8s-apps

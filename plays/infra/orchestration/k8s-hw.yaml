@@ -40,7 +40,7 @@
         name: nfs-common
         state: present
   roles:
-    - name: cloud/microk8s
+    - name: infra/orchestration/microk8s
       vars:
         microk8s_drain_node_on_update: "{{ (groups['k8s'] | length) > 2 }}"
 

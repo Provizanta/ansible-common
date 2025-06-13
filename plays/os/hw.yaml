@@ -1,6 +1,7 @@
 ---
 
 - hosts: all
+  environment: "{{ env | default({}) }}"
   tasks:
     - name: driver | GPU
       when:

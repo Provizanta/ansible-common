@@ -43,13 +43,6 @@
     - role: os/shell
       tags: shell
       when: ansible_system == 'Linux'
-    - role: apps/neovim
-      tags: neovim
-      when: ansible_system == 'Linux'
-    - role: development/git
-      tags: git
-      when: ansible_system == 'Linux'
-
 
 - hosts: applications
   environment: "{{ env | default({}) }}"

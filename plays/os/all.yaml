@@ -1,5 +1,7 @@
 ---
 
+- import_playbook: ./bootstrap.yaml
+
 - hosts: all
   gather_facts: true 
   pre_tasks:
@@ -10,12 +12,12 @@
   roles:
     - role: os/users
     - role: os/openssh
-      import_playbook:
-        name: os/system/
 
-- import_playbook: os/user/applications.yaml
+- import_playbook: ./hw.yaml
 
-- import_playbook: os/system/optimize.yaml
+- import_playbook: ./user/applications.yaml
 
-- import_playbook: os/system/update.yaml
+- import_playbook: ./system/optimize.yaml
+
+- import_playbook: ./system/upgrade.yaml
 

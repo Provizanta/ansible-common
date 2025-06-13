@@ -1,4 +1,7 @@
+---
+
 - hosts: all
+  environment: "{{ env | default({}) }}"
   tasks:
     - name: sysctl | set values
       when:
@@ -10,7 +13,6 @@
         name: "{{ item.name }}"
         value: "{{ item.value }}"
         state: "{{ item.state }}"
-
     
     - name: linux | battery
       when:
