@@ -39,7 +39,7 @@ roles:
 
   - name: os/linux/bootstrap
     src: https://github.com/Provizanta/ansible-role-bootstrap
-    version: v1.0.3
+    version: v1.0.4
 
   - name: os/driver/gpu/nvidia-cuda
     src: https://github.com/Provizanta/ansible-role-nvidia-cuda
