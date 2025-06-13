@@ -1,0 +1,28 @@
+---
+
+roles:
+  - name: network/ntp
+    src: geerlingguy.ntp
+    version: 2.3.1
+
+  - name: network/nfs
+    src: geerlingguy.nfs
+    version: 2.0.0
+
+  - name: ansible-modules-hashivault
+    src: https://github.com/TerryHowe/ansible-modules-hashivault.git
+    version: main
+
+  - name: virtual/libvirt
+    src: https://github.com/Provizanta/ansible-role-libvirt
+    version: main
+
+  - name: os/linux/docker
+    src: geerlingguy.docker
+    version: 7.4.3
+
+collections:
+  - name: community.hashi_vault
+
+  - name: community.crypto
+    version: 2.16.1
