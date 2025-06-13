@@ -1,0 +1,117 @@
+---
+
+- hosts: vpn_clients
+  vars:
+    openvpn_config_path: /usr/lib/systemd/system/
+  tasks:
+    - name: ovpn networking
+      when: ovpn_configs_path is defined
+      block:
+        - name: ovpn | checks
+          vars:
+            ovpn_files_environments: "{{ lookup('fileglob', ovpn_configs_path + '*.ovpn', wantlist=True)
+                                         | map('basename')
+                                         | map('regex_replace', '(.*).ovpn', '\\1')
+                                         | list
+                                         | sort }}"
+            ovpn_files_credentials: "{{ lookup('fileglob', ovpn_configs_path + '*.creds', wantlist=True)
+                                        | map('basename')
+                                        | map('regex_replace', '(.*).creds', '\\1')
+                                        | list
+                                        | sort }}"
+          ansible.builtin.assert:
+            that:
+              - ovpn_files_environments == ovpn_files_credentials
+            msg: "Something in either .ovpn files ({{ ovpn_files_environments }}) or .creds credentials ({{ ovpn_files_credentials }}) is missing."
+
+        - name: ovpn | prepare facts
+          set_fact:
+            _ovpn_environments: "{{ lookup('fileglob', ovpn_configs_path + '*.ovpn', wantlist=True)
+                                    | map('basename')
+                                    | map('regex_replace', '(.*).ovpn', '\\1')
+                                    | list }}"
+
+        - name: ovpn | install
+          become: true
+          package:
+            name:
+              - openvpn
+              - openresolv
+            state: present
+
+        - name: ovpn | config dirs
+          become: true
+          loop:
+            - "{{ openvpn_config_path }}"
+            - /etc/openvpn/
+          file:
+            path: "{{ item }}"
+            owner: root
+            group: root
+            state: directory
+
+        - name: ovpn | systemd | template service unit
+          become: true
+          copy:
+            dest: "{{ openvpn_config_path }}/openvpn@.service"
+            content: |
+              [Unit]
+              Description=OpenVPN Tunneling Application on %I
+              After=syslog.target network.target
+
+              [Service]
+              PrivateTmp=true
+              Type=forking
+              PIDFile=/var/run/openvpn/%i.pid
+              Restart=on-failure
+              RestartSec=10s
+              ExecStart=/usr/sbin/openvpn --daemon --writepid /var/run/openvpn/%i.pid --cd /etc/openvpn/ --config %i.ovpn --auth-user-pass %i.creds
+
+              [Install]
+              WantedBy=multi-user.target
+            owner: root
+            group: root
+            mode: "u=rwx,go=rx"
+          notify:
+            -
+
+        - name: ovpn | find existing configs
+          find:
+            paths: "{{ openvpn_config_path }}"
+            file_type: file
+            patterns: '*.ovpn,*.creds'
+          register: _existing_ovpn_files
+
+        - name: ovpn | remove obsolete VPN config files
+          loop: "{{ _existing_ovpn_files.files | map(attribute='path') | map('basename') | map('regex_search','.*.ovpn') | select('string') | list }}"
+          when: item not in _ovpn_environments
+          become: true
+          ansible.builtin.systemd:
+            state: stopped
+            name: openvpn@{{ item }}.service
+
+        - name: ovpn | remove obsolete VPN config files
+          loop: "{{ _existing_ovpn_files.files | map(attribute='path') | list }}"
+          when: (item | basename | splitext | first) not in _ovpn_environments
+          become: true
+          file:
+            path: "{{ item }}"
+            state: absent
+
+        - name: ovpn | VPN config files
+          loop: "{{ lookup('fileglob', ovpn_configs_path + '*.ovpn', wantlist=True) + lookup('fileglob', ovpn_configs_path + '*.creds', wantlist=True) }}"
+          become: true
+          copy:
+            src: "{{ item }}"
+            dest: "/etc/openvpn/{{ item | basename }}"
+            owner: root
+            group: root
+            mode: "u=rw,go="
+
+        - name: ovpn | restart present vpns
+          loop: "{{ _ovpn_environments }}"
+          become: true
+          ansible.builtin.systemd:
+            state: restarted
+            daemon_reload: true
+            name: openvpn@{{ item }}.service

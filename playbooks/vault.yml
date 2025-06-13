@@ -1,0 +1,145 @@
+---
+
+- hosts: localhost
+  environment:
+    VAULT_ADDR: "{{ vault_address }}"
+    VAULT_AUTHTYPE: token
+    VAULT_TOKEN: "{{ lookup('community.hashi_vault.vault_login', url=vault_address, auth_method='token', token=vault_root_token) | community.hashi_vault.vault_login_token }}"
+  tasks:
+    - name: pre-requisites
+      when: ansible_system == "Linux"
+      ansible.builtin.pip:
+        name:
+          - ansible-modules-hashivault
+          - google-cloud-storage
+          - hvac
+        state: present
+
+    - name: create python symlink
+      when: ansible_system == "Linux"
+      become: true
+      ansible.builtin.file:
+        src: /usr/bin/python3
+        dest: /usr/bin/python
+        state: link
+      failed_when: false
+
+    - name: vars | vault configuration
+      vars:
+        _vars_gs_src: "{{ vars_gs_src | default('vars_ra.brightpick.ai.yaml') }}"
+      tags: always
+      block:
+        - name: vars | download configuration
+          when:
+            - (fetch_vars_file | default(true)) | bool
+          google.cloud.gcp_storage_object:
+            action: download
+            bucket: "{{ vars_gs_bucket | default('vault-backup-ra-main') }}"
+            src: "{{ _vars_gs_src }}"
+            dest: "{{ ansible_env.HOME }}/{{ _vars_gs_src | basename }}"
+            project: "{{ vars_gs_project | default('ra-admin-359711') }}"
+            auth_kind: application
+
+        - name: vars | include loaded variables
+          ansible.builtin.include_vars: "{{ ansible_env.HOME }}/{{ _vars_gs_src | basename }}"
+
+    - name: init
+      when: vault_init | default(false)
+      hashivault_init:
+      register: _init_result
+
+    - name: unseal
+      when: vault_unseal | default(vault_init) | default(false)
+      hashivault_unseal:
+
+    - name: cluster | join
+      when: vault_init | default(false)
+      ansible.builtin.pause:
+        prompt: |
+          The vault has been initialized and unsealed. Perform the following steps to
+          join all individual instances into a HA deployment:
+
+          # raft-based vault clusterization: https://www.vaultproject.io/docs/platform/k8s/helm/examples/ha-with-raft
+          kubectl exec -ti -n security vault-1 -- vault operator raft join http://vault-0.vault-internal:8200
+          kubectl exec -ti -n security vault-1 -- vault operator unseal
+
+          kubectl exec -ti -n security vault-2 -- vault operator raft join http://vault-0.vault-internal:8200
+          kubectl exec -ti -n security vault-2 -- vault operator unseal
+
+    - name: policy | create
+      loop: "{{ vault_policies }}"
+      hashivault_policy:
+        state: "{{ item.state | default('present') }}"
+        name: "{{ item.name }}"
+        rules: "{{ item.rules }}"
+
+    - name: auth | enable
+      loop: "{{ vault_auth_methods }}"
+      hashivault_auth_method:
+        method_type: "{{ item }}"
+        state: enabled
+
+    - name: secret | enable
+      hashivault_secret_engine:
+        name: secret
+        backend: kv-v2
+        state: present
+
+    - name: approle | create
+      loop: "{{ vault_approles }}"
+      hashivault_approle_role:
+        name: "{{ item.name }}"
+        token_ttl: "{{ item.token_ttl | default('2h') }}"
+        token_policies: "{{ item.token_policies | default([]) }}"
+        state: present
+
+    - name: approle | get existing roles
+      loop: "{{ vault_approles | map(attribute='name') }}"
+      hashivault_approle_role_secret_list:
+        name: "{{ item }}"
+      register: _approles
+
+    - name: approle | create secret_id
+      loop: "{{ vault_approles | map(attribute='name') }}"
+      when: (_approles['results'] | selectattr('item', 'equalto', item) | map(attribute='secrets') | first | default([]) | length) == 0
+      hashivault_approle_role_secret:
+        name: "{{ item }}"
+        state: present
+      register: _approle_secret_ids
+
+    - name: secrets | insert
+      loop: "{{ vault_secrets }}"
+      hashivault_secret:
+        secret: "{{ item.path }}"
+        version: 2
+        data: "{{ item.content }}"
+
+    - name: output | approle | role ids
+      loop: "{{ vault_approles | map(attribute='name') }}"
+      hashivault_approle_role_id:
+        name: "{{ item }}"
+      register: _approles_role_ids
+
+    - set_fact:
+        output:
+          initialization: "{{ _init_result }}"
+          auth:
+            approles:
+              role_ids: "{{ _approles_role_ids['results'] | map(attribute='item') | list | zip(_approles_role_ids['results'] | map(attribute='id') | list)}}"
+              new_secrets: "{{ _approle_secret_ids['results'] | selectattr('changed', 'equalto', true) }}"
+
+    - name: vars | upload configuration
+      when: (upload_vars_file | default(false)) | bool
+      vars:
+        _vars_gs_src: "{{ vars_gs_src | default('vars_ra.brightpick.ai.yaml') }}"
+      google.cloud.gcp_storage_object:
+        action: upload
+        bucket: "{{ vars_gs_bucket | default('vault-backup-ra-main') }}"
+        src: "{{ ansible_env.HOME }}/{{ _vars_gs_src | basename }}"
+        dest: "{{ _vars_gs_src }}"
+        project: "{{ vars_gs_project | default('ra-admin-359711') }}"
+        auth_kind: application
+
+    - name: output | init
+      debug:
+        var: output

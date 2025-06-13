@@ -1,0 +1,49 @@
+---
+
+- hosts: dns
+  roles:
+    - role: network/bind
+
+# - hosts: physical:!localhost
+#   tasks:
+#     - name: prepare overrides
+#       when: |
+#         ('dns' in groups) and not
+#         (dns_servers_override is defined and dns_domains_override is defined)
+#       set_fact:
+#         dns_domains_override: "{{ hostvars[groups['dns'] | first]['dns_zones'] | dict2items | map(attribute='key') | first }}"
+#         dns_servers_override: "{{ hostvars[groups['dns'] | first]['ansible_host'] }}"
+#
+#     - name: set DNS and domain configuration
+#       become: true
+#       when:
+#         - dns_servers_override is defined
+#         - dns_domains_override is defined
+#       loop:
+#         - regex: "^#{0,1}DNS=.*"
+#           line: "DNS={{ dns_servers_override }}"
+#         - regex: "^#{0,1}FallbackDNS=.*"
+#           line: "FallbackDNS=8.8.8.8"
+#         - regex: "^#{0,1}Domains=.*"
+#           line: "Domains={{ dns_domains_override }}"
+#       ansible.builtin.lineinfile:
+#         path: /etc/systemd/resolved.conf
+#         regexp: "{{ item.regex }}"
+#         line: "{{ item.line }}"
+#         owner: root
+#         group: root
+#         mode: "u=rw,go=r"
+#       notify: restart systemd-resolved
+#   handlers:
+#     - name: restart systemd-resolved
+#       become: true
+#       service:
+#         name: systemd-resolved
+#         state: restarted
+
+# - hosts: dns
+#   tasks:
+#     - name: restart services on a slave instance
+#       when: "dns_type == 'slave'"
+#       become: true
+#       command: "rndc retransfer {{ dns_zone }}"

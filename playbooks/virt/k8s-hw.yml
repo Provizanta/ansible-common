@@ -1,0 +1,71 @@
+---
+
+- hosts: k8s
+  serial: 1
+  environment:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
+  pre_tasks:
+    - name: hosts | add the first host as k8s leader
+      when: groups['k8s_full'] is defined
+      add_host:
+        hostname: "{{ groups['k8s_full'][0] }}"
+        groups:
+          - k8s_leader
+
+    - name: microk8s | audit policy file directory
+      when: microk8s_audit_policies is defined
+      become: true
+      ansible.builtin.file:
+        path: "/var/data/"
+        owner: root
+        group: microk8s
+        state: directory
+
+    - name: microk8s | audit policy file
+      when: microk8s_audit_policies is defined
+      become: true
+      loop: "{{ microk8s_audit_policies | dict2items }}"
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/var/data/{{ item.key }}"
+        owner: root
+        group: microk8s
+        mode: u=rx,g-rwx,o-rwx
+
+    - name: nfs-common | install
+      when: "'nfs' in groups"
+      become: true
+      package:
+        name: nfs-common
+        state: present
+  roles:
+    - name: cloud/microk8s
+      vars:
+        microk8s_drain_node_on_update: "{{ (groups['k8s'] | length) > 2 }}"
+
+- hosts: k8s:!k8s_leader
+  environment:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
+  gather_facts: false
+  tasks:
+    - name: add command | output
+      command: "microk8s add-node --format=yaml"
+      register: _cluster_add_command_output
+      changed_when: false
+      delegate_to: "{{ groups['k8s_leader'] | first }}"
+
+    - name: microk8s | node status
+      command: "microk8s status --format=yaml"
+      register: _node_status
+      changed_when: false
+      failed_when: false
+
+    - name: join cluster
+      vars:
+        join_address: "{{ (_cluster_add_command_output.stdout | from_yaml)['urls'] | first }}"
+        node_addresses: "{{ (_node_status.stdout | from_yaml)['high-availability']['nodes'] | map(attribute='address') | map('split', ':') | map('first') | list }}"
+      when: hostvars[groups['k8s_leader'] | first]['ansible_host'] not in node_addresses
+      become: true
+      command: "microk8s join {{ join_address }}{{ (inventory_hostname in groups['k8s_worker']) | ternary(' --worker','') }}"

@@ -1,0 +1,29 @@
+---
+
+- hosts: all
+  tasks:
+    - name: driver | GPU
+      when:
+        - ansible_system == 'Linux'
+        - install_hw_drivers | default(false)
+      block:
+        - name: driver | GPU | pre-requisites
+          become: true
+          package:
+            name: lshw
+            state: present
+
+        - name: driver | GPU | check for cards
+          become: true
+          ansible.builtin.command: lshw -json
+          register: _lshw_status
+          changed_when: false
+
+        - name: driver | GPU | nvidia & CUDA
+          when:
+            - _lshw_status.stdout is search("nvidia")
+          import_role:
+            name: os/driver/gpu/nvidia-cuda
+          vars:
+            nvidia_cuda_install_container_runtime: true
+

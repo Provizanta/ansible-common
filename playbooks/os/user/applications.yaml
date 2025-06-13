@@ -1,0 +1,108 @@
+---
+
+- hosts: applications
+  environment: "{{ env | default({}) }}"
+  pre_tasks:
+    - name: linux | os specific apps
+      when:
+        - ansible_system == 'Linux'
+      block:
+        - name: pre-requisite roles | snapd
+          ansible.builtin.include_role:
+            name: os/linux/snapd
+
+        - name: snaps | install
+          when: applications_linux_snaps is defined
+          become: true
+          snap:
+            name: "{{ item }}"
+            state: present
+          loop: "{{ applications_linux_snaps }}"
+          tags: install
+
+        - name: snaps | cron | setup cleanup
+          become: true
+          ansible.builtin.cron:
+            name: cleanup unused snaps
+            minute: "0"
+            hour: "16"
+            user: root
+            job: LANG=C snap list --all | awk '/disabled/{print $1" --revision "$3}' | xargs -rn3 snap remove
+
+        - name: packages | install
+          when: applications_linux_packages is defined
+          become: true
+          loop: "{{ applications_linux_packages | default([]) }}"
+          package:
+            name: "{{ item }}"
+            state: present
+          tags: install
+
+  # replace these with a nix home-manager based setup
+  roles:
+    - role: os/shell
+      tags: shell
+      when: ansible_system == 'Linux'
+    - role: apps/neovim
+      tags: neovim
+      when: ansible_system == 'Linux'
+    - role: development/git
+      tags: git
+      when: ansible_system == 'Linux'
+
+
+- hosts: applications
+  environment: "{{ env | default({}) }}"
+  vars:
+    flake_dir_path: "{{ ansible_env['HOME'] }}/.config/nix"
+  roles:
+    - role: os/nix
+      tags: nix
+  
+  post_tasks:
+    - name: check flake.nix
+      when: ansible_system == "Darwin"
+      ansible.builtin.stat:
+        path: "{{ flake_dir_path }}/flake.nix"
+      register: p
+
+    - name: first build trigger 
+      meta: noop
+      changed_when: p.stat.exists is not True
+      notify: darwin | first build  
+
+    - name: user files | ensure directories
+      when:
+        - nix_files is defined
+      loop: "{{ nix_files | default([]) | dict2items }}"
+      file:
+        path: "{{ '{}/{}'.format(ansible_env.HOME, item.key) | dirname }}"
+        state: directory
+
+    - name: user files | emplace
+      when:
+        - nix_files is defined
+      loop: "{{ nix_files | default([]) | dict2items }}"
+      copy:
+        content: "{{ item.value }}"
+        dest: "{{ ansible_env.HOME }}/{{ item.key }}"
+      notify: darwin | rebuild
+
+    - name: nix | user files | install
+      when:
+        - ansible_system == 'Linux'
+        - "'env.nix' in nix_files"
+      shell: |
+        source {{ ansible_env.HOME }}/.profile
+        nix-env -if {{ ansible_env.HOME }}/env.nix
+      args:
+        executable: /bin/bash
+
+  handlers:
+    - name: darwin | first build
+      when: ansible_system == "Darwin"
+      command: nix run nix-darwin -- switch --flake {{ flake_dir_path }}
+
+    - name: darwin | rebuild
+      when: ansible_system == "Darwin"
+      command: darwin-rebuild switch --flake {{ flake_dir_path }}

@@ -1,0 +1,16 @@
+---
+
+- hosts: k8s
+  serial: 1
+  tasks:
+    - name: microk8s | add node labels
+      when: k8s_add_node_labels is defined
+      become: true
+      ansible.builtin.command: microk8s kubectl label node --overwrite {{ inventory_hostname }} {{ item }}
+      loop: "{{ k8s_add_node_labels }}"
+
+    - name: microk8s | remove node labels
+      when: k8s_remove_node_labels is defined
+      become: true
+      ansible.builtin.command: microk8s kubectl label node {{ inventory_hostname }} {{ item | split('=') | first }}-
+      loop: "{{ k8s_remove_node_labels }}"

@@ -1,0 +1,25 @@
+---
+
+- hosts: all
+  environment: "{{ env | default({}) }}"
+  gather_facts: false
+
+  tasks:
+    - name: bootstrap | check OS
+      command: uname -s
+      register: _command
+      changed_when: false
+
+    - name: bootstrap | Linux
+      when:
+        - _command.stdout == 'Linux'
+      include_role:
+        name: os//linux/bootstrap
+      vars:
+        bootstrap_user: "{{ bootstrap_default_user }}"
+
+    - name: bootstrap | setup
+      when:
+        - _command.stdout != 'Linux'
+      ansible.builtin.setup:
+

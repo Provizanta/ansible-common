@@ -1,0 +1,21 @@
+---
+
+- hosts: all
+  gather_facts: true 
+  pre_tasks:
+    - name: inventory hostname
+      become: true
+      hostname:
+        name: "{{ inventory_hostname }}"
+  roles:
+    - role: os/users
+    - role: os/openssh
+      import_playbook:
+        name: os/system/
+
+- import_playbook: os/user/applications.yaml
+
+- import_playbook: os/system/optimize.yaml
+
+- import_playbook: os/system/update.yaml
+

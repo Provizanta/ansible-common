@@ -1,0 +1,28 @@
+---
+
+- hosts: ntp
+  tasks:
+    - name: ntp setup
+      become: true
+      import_role:
+        name: network/ntp
+      vars:
+        ntp_package: ntp
+        ntp_enabled: true
+        ntp_config_file: /etc/ntp.conf
+        ntp_manage_config: true
+      notify:
+        - reload daemon
+        - disable systemd-timesyncd
+
+  handlers:
+    - name: reload daemon
+      become: true
+      systemd:
+        daemon_reload: true
+
+    - name: disable systemd-timesyncd
+      become: true
+      systemd:
+        name: systemd-timesyncd
+        enabled: false

@@ -1,0 +1,98 @@
+---
+
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - when: groups['k8s_full'] is defined
+      add_host:
+        hostname: "{{ groups['k8s_full'][0] }}"
+        groups:
+          - k8s_leader
+
+    - when: "'provisioner' not in ansible_play_hosts_all"
+      add_host:
+        hostname: provisioner
+        ansible_connection: local
+
+- hosts: k8s_leader
+  tasks:
+    - name: kubectl | credentials | prepare temporary file
+      delegate_to: provisioner
+      ansible.builtin.tempfile:
+        state: file
+        suffix: yaml
+      register: tempfile
+
+    - name: kubectl | credentials | fetch config
+      command: microk8s config
+      register: _kubectl_config
+      changed_when: false
+
+    - name: kubectl | credentials | store
+      delegate_to: provisioner
+      no_log: true
+      copy:
+        dest: "{{ tempfile.path }}"
+        content: "{{ _kubectl_config.stdout }}"
+        mode: "u=r,go="
+      notify: kubectl | remove temporary credentials
+
+    - name: kubectl | applications
+      delegate_to: provisioner
+      environment:
+        KUBECONFIG: "{{ tempfile.path }}"
+        K8S_AUTH_KUBECONFIG: "{{ tempfile.path }}"
+      block:
+        - name: app | provisioning credentials
+          when: k8s_provisioning_file is defined
+          kubernetes.core.k8s:
+            state: present
+            src: "{{ k8s_provisioning_file }}"
+
+        - name: app | argo-cd
+          when: k8s_use_argocd | default(false)
+          block:
+            - name: argo-cd | namespace
+              kubernetes.core.k8s:
+                name: "{{ argocd_namespace | default('argocd') }}"
+                api_version: v1
+                kind: Namespace
+                state: present
+
+            - name: argo-cd | pre-requisites
+              loop: "{{ argocd_objects | default([]) }}"
+              no_log: "{{ (item.kind == 'Secret') | default(false) }}"
+              kubernetes.core.k8s:
+                state: present
+                definition: "{{ argocd_objects }}"
+
+            - name: argo-cd | helm | establish repo
+              kubernetes.core.helm_repository:
+                name: argo
+                repo_url: https://argoproj.github.io/argo-helm
+                state: present
+
+            - name: argo-cd | helm | install
+              kubernetes.core.helm:
+                state: present
+                release_name: argocd
+                release_namespace: "{{ argocd_namespace | default('argocd') }}"
+                create_namespace: true
+                chart_ref: argo/argo-cd
+                chart_version: "{{ argocd_chart_version }}"
+                release_values: "{{ argocd_values }}"
+
+        - name: app | extra objects
+          loop: "{{ k8s_extra_objects | default([]) + (argocd_applications | default([])) }}"
+          no_log: "{{ (item.kind == 'Secret') | default(false) }}"
+          kubernetes.core.k8s:
+            state: present
+            definition: "{{ item }}"
+
+  handlers:
+    - name: kubectl | remove temporary credentials
+      delegate_to: provisioner
+      when: tempfile.path is defined
+      ansible.builtin.file:
+        path: "{{ tempfile.path }}"
+        state: absent

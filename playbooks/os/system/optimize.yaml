@@ -1,0 +1,32 @@
+- hosts: all
+  tasks:
+    - name: sysctl | set values
+      when:
+        - sysctl_config is defined
+        - (sysctl_config | length) > 0
+      become: true
+      loop: "{{ sysctl_config }}"
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: "{{ item.state }}"
+
+    
+    - name: linux | battery
+      when:
+        - ansible_system == 'Linux'
+      become: true
+      ansible.builtin.package:
+        name:
+          - tlp
+          - tlp-rdw
+        state: present
+      notify: enable tlp service
+
+  handlers:
+    - name: enable tlp service
+      become: true
+      ansible.builtin.systemd:
+        name: tlp
+        state: started
+        enabled: true
