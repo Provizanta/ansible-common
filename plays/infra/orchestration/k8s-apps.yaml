@@ -3,25 +3,27 @@
 - hosts: localhost
   gather_facts: false
   tasks:
-    - when: groups['k8s_full'] is defined
-      add_host:
-        hostname: "{{ groups['k8s_full'][0] }}"
+    - add_host:
+        hostname: "{{ groups['k8s_full'][0] | default(groups['k8s'][0]) }}"
         groups:
           - k8s_leader
 
-    - when: "'provisioner' not in ansible_play_hosts_all"
+- hosts: k8s_leader
+  tasks:
+    - name: provisioner | add
+      when: "'provisioner' not in ansible_play_hosts_all"
       add_host:
         hostname: provisioner
         ansible_connection: local
+      changed_when: false
 
-- hosts: k8s_leader
-  tasks:
     - name: kubectl | credentials | prepare temporary file
       delegate_to: provisioner
       ansible.builtin.tempfile:
         state: file
         suffix: yaml
       register: tempfile
+      changed_when: false
 
     - name: kubectl | credentials | fetch config
       command: microk8s config
@@ -35,6 +37,7 @@
         dest: "{{ tempfile.path }}"
         content: "{{ _kubectl_config.stdout }}"
         mode: "u=r,go="
+      changed_when: false
       notify: kubectl | remove temporary credentials
 
     - name: kubectl | applications

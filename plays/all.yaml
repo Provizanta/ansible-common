@@ -23,6 +23,10 @@
   tags:
     - virtualization
 
+- import_playbook: infra/orchestration/all.yaml
+  tags:
+    - orchestration
+
 # services
 - import_playbook: services/ntp.yaml
   tags: 

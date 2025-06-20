@@ -7,11 +7,11 @@
     LANG: C.UTF-8
   pre_tasks:
     - name: hosts | add the first host as k8s leader
-      when: groups['k8s_full'] is defined
       add_host:
-        hostname: "{{ groups['k8s_full'][0] }}"
+        hostname: "{{ groups['k8s_full'][0] | default(groups['k8s'][0]) }}"
         groups:
           - k8s_leader
+      changed_when: false
 
     - name: microk8s | audit policy file directory
       when: microk8s_audit_policies is defined
